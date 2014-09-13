@@ -1,8 +1,32 @@
 #include "testApp.h"
+#include <fstream>
+
+Json::Value testApp::read_json(char* path) {
+    ifstream ifs(path);
+    string json(istreambuf_iterator<char>(ifs), (istreambuf_iterator<char>()));
+
+    Json::Value root;
+    Json::Reader reader;
+    reader.parse(json, root);
+
+    return root;
+}
+
+void testApp::write_json(Json::Value root, char* path) {
+    Json::StyledWriter writer;
+    string json = writer.write(root);
+    ofstream ofs(path);
+    ofs << json;
+    ofs.close();
+}
+
 
 //--------------------------------------------------------------
 void testApp::setup(){
 
+    Json::Value config = read_json(CONF);
+
+    string video = config["video"].asString();
 }
 
 //--------------------------------------------------------------
@@ -56,6 +80,6 @@ void testApp::gotMessage(ofMessage msg){
 }
 
 //--------------------------------------------------------------
-void testApp::dragEvent(ofDragInfo dragInfo){ 
+void testApp::dragEvent(ofDragInfo dragInfo){
 
 }
