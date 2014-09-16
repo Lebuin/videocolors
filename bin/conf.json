@@ -1,6 +1,7 @@
 {
     "video": "TPT.mp4",
     "maxWidth": 1300,
-    "numPix": 5000,
-    "numClusters": 10
+    "numPixels": 20000,
+    "numClusters": 15,
+    "updateAlpha": 0.1;
 }

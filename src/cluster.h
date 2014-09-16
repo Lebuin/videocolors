@@ -1,13 +1,7 @@
 #pragma once
 
 #include "ofMain.h"
-
-// A HSB representation of color, with all parameters in [0, 1[
-typedef struct colorHsb {
-    float h;
-    float s;
-    float b;
-} colorHsb;
+#include "structs.h"
 
 
 class Cluster {

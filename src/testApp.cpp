@@ -30,14 +30,31 @@ ofColor testApp::getVideoColor(int x, int y) {
 int testApp::closestCluster(colorHsb c) {
     float dist, minDist = 200000000;
     int mini;
+    
+    // Loop through all the clusters
     for(int i=0; i<numClusters; i++) {
+        
+        // Calculate the distance from this color to the current cluster color
         dist = clusters[i].colorDist(c);
+        
         if(dist < minDist) {
             minDist = dist;
             mini = i;
         }
     }
     return mini;
+}
+
+void testApp::drawPixels() {
+    // Draw the pixels that were used for clustering
+    ofSetColor(255, 255, 255, 20);
+    ofColor c;
+    for(float i=rxOffset; i < vDim.x; i += rStep) {
+        for(float j=ryOffset; j < vDim.y; j += rStep) {
+            c = pixels.getColor(i, j);
+            ofRect(vDim.x + (c.getHue()/256*vDim.y), c.getSaturation()/256*vDim.y, vDim.y/256., vDim.y/256.);
+        }
+    }
 }
 
 //--------------------------------------------------------------
@@ -47,10 +64,8 @@ void testApp::setup(){
     Json::Value config = read_json(CONF);
     
     
-    // Get color config values
-    numClusters = config["numClusters"].asInt();
-    
     // Allocate clusters
+    numClusters = config["numClusters"].asInt();
     clusters = (Cluster*) malloc(numClusters * sizeof(Cluster));
     
     // Set default colors
@@ -66,20 +81,35 @@ void testApp::setup(){
     
     
     // Set dimensions
+    vSize = {video.getWidth(), video.getHeight()};
     int maxWidth = config["maxWidth"].asInt();
-    int totalWidth = video.getWidth() + video.getHeight();
+    int totalWidth = vSize.x + vSize.y;
     if(totalWidth > maxWidth) {
         scale = 1. * maxWidth / totalWidth;
     }
     
     vDim = {
-        scale * video.getWidth(),
-        scale * video.getHeight()
+        scale * vSize.x,
+        scale * vSize.y
     };
     
     
-    vRaster = Raster(vDim.x, vDim.y, config["numPix"].asInt());
+    // Calculate the step and offset for the pixels that will be read from the video
+    numPixels = config["numPixels"].asInt();
+    rStep = sqrt(1. * vSize.x * vSize.y / numPixels);
+    rxOffset = fmod(vSize.x, rStep) / 2;
+    ryOffset = fmod(vSize.y, rStep) / 2;
     
+    // Initialize the playfield where the clusters will be drawn
+    float updateAlpha = config["updateAlpha"].asFloat();
+    field = PlayField(
+        {vDim.x, 0},
+        {vDim.y, vDim.y},
+        numClusters,
+        clusters,
+        10.*numClusters/numPixels,
+        updateAlpha
+    );
     
     // Setup screen
     ofBackground(0, 0, 0);
@@ -93,15 +123,22 @@ void testApp::setup(){
 void testApp::update() {
     video.update();
     pixels = video.getPixelsRef();
+    
     if(video.isFrameNew()) {
         float h, s, b;
         int index;
-        for(int i=vRaster.offset.x; i < vDim.x; i += vRaster.step.x) {
-            for(int j=vRaster.offset.y; j < vDim.y; j += vRaster.step.y) {
-                pixels.getColor(i, j).getHsb(h, s, b);
+        
+        // Loop through all the pixels in the raster (approx. numPixels)
+        for(float i=rxOffset; i < vSize.x; i += rStep) {
+            for(float j=ryOffset; j < vSize.y; j += rStep) {
+                // Get the color in HSB
+                pixels.getColor((int) i, (int) j).getHsb(h, s, b);
                 colorHsb c = {h/256, s/256, b/256};
                 
+                // Find the closest cluster
                 index = closestCluster(c);
+                
+                // Add this color to the cluster pull-list
                 clusters[index].pullColor(c);
             }
         }
@@ -109,40 +146,26 @@ void testApp::update() {
         for(int i=0; i<numClusters; i++) {
             clusters[i].updateColor();
         }
+        
+        field.update();
     }
 }
 
 //--------------------------------------------------------------
 void testApp::draw() {
+    
+    // Draw the video
     ofSetColor(255, 255, 255);
     video.draw(0, 0, vDim.x, vDim.y);
-    ofDrawBitmapString(ofToString(ofGetFrameRate())+" fps", 15, 10);
-
-    // Draw the pixels that will be used for clustering, to get an idea
-    ofSetColor(255, 255, 255, 20);
-    ofColor c;
-    for(int i=vRaster.offset.x; i < vDim.x; i += vRaster.step.x) {
-        for(int j=vRaster.offset.y; j < vDim.y; j += vRaster.step.y) {
-            c = pixels.getColor(i, j);
-            ofRect(vDim.x + c.getHue(), vDim.y/2+1 + c.getSaturation(), 1, 1);
-            ofRect(vDim.x + c.getHue(), vDim.y/2-1 - (256-c.getBrightness()), 1, 1);
-        }
-    }
     
-    // Draw the cluster positions
-    for(int i=0; i<numClusters; i++) {
-        ofSetColor(
-            ofColor::fromHsb(
-                256 * clusters[i].color.h,
-                256 * clusters[i].color.s,
-                256 * clusters[i].color.b
-            ),
-            170
-        );
-        
-        ofCircle(vDim.x + 256*clusters[i].color.h, vDim.y/2+1 + 256*clusters[i].color.s, clusters[i].members/50);
-        ofCircle(vDim.x + 256*clusters[i].color.h, vDim.y/2-1 - (256-256*clusters[i].color.b), clusters[i].members/50);
-    }
+    // Write the framerate
+    ofDrawBitmapString(ofToString(ofGetFrameRate())+" fps", 15, 10);
+    
+    // Draw the pixels
+    //drawPixels();
+    
+    // Draw the playfield
+    field.drawClustersHsb(170);
 }
 
 //--------------------------------------------------------------
